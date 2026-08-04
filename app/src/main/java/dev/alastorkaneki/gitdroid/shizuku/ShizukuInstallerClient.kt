@@ -6,7 +6,6 @@ import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
-import dev.alastorkaneki.gitdroid.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -83,7 +82,7 @@ object ShizukuInstallerClient {
             .processNameSuffix("gitdroid_installer")
             .tag("gitdroid-installer")
             .version(USER_SERVICE_VERSION)
-            .debuggable(BuildConfig.DEBUG)
+            .debuggable(false)
             .daemon(true)
 
         val connection = object : ServiceConnection {
