@@ -27,7 +27,7 @@ internal class FdroidClient(private val cacheDirectory: File) {
     private fun download(url: String, destination: File) {
         val temporary = File(destination.parentFile, "${destination.name}.download")
         connection(url).useInput { input ->
-            FileOutputStream(temporary).use(input::copyTo)
+            FileOutputStream(temporary).use { output -> input.copyTo(output) }
         }
         if (!temporary.renameTo(destination)) {
             temporary.copyTo(destination, overwrite = true)
@@ -103,7 +103,9 @@ internal class FdroidClient(private val cacheDirectory: File) {
                     "sourceCode" -> sourceCode = reader.flexibleString().ifBlank { null }
                     "categories" -> {
                         reader.beginArray()
-                        while (reader.hasNext()) reader.flexibleString().takeIf(String::isNotBlank)?.let(categories::add)
+                        while (reader.hasNext()) {
+                            reader.flexibleString().takeIf(String::isNotBlank)?.let(categories::add)
+                        }
                         reader.endArray()
                     }
                     else -> reader.skipValue()
@@ -111,7 +113,17 @@ internal class FdroidClient(private val cacheDirectory: File) {
             }
             reader.endObject()
             if (packageName.isNotBlank()) {
-                output[packageName] = Metadata(packageName, name, summary, description, icon, categories, license, website, sourceCode)
+                output[packageName] = Metadata(
+                    packageName = packageName,
+                    name = name,
+                    summary = summary,
+                    description = description,
+                    icon = icon,
+                    categories = categories,
+                    license = license,
+                    website = website,
+                    sourceCode = sourceCode
+                )
             }
         }
         reader.endArray()
@@ -194,15 +206,27 @@ internal class FdroidClient(private val cacheDirectory: File) {
 }
 
 private fun JsonReader.flexibleString(): String = when (peek()) {
-    JsonToken.NULL -> { nextNull(); "" }
+    JsonToken.NULL -> {
+        nextNull()
+        ""
+    }
     JsonToken.STRING, JsonToken.NUMBER -> nextString()
     JsonToken.BOOLEAN -> nextBoolean().toString()
-    else -> { skipValue(); "" }
+    else -> {
+        skipValue()
+        ""
+    }
 }
 
 private fun JsonReader.flexibleLong(): Long = when (peek()) {
     JsonToken.NUMBER -> runCatching { nextLong() }.getOrDefault(0L)
     JsonToken.STRING -> nextString().toLongOrNull() ?: 0L
-    JsonToken.NULL -> { nextNull(); 0L }
-    else -> { skipValue(); 0L }
+    JsonToken.NULL -> {
+        nextNull()
+        0L
+    }
+    else -> {
+        skipValue()
+        0L
+    }
 }
