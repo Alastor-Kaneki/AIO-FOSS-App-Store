@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "dev.alastorkaneki.gitdroid"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "dev.alastorkaneki.gitdroid"
