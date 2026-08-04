@@ -66,6 +66,11 @@ internal class FdroidClient(private val cacheDirectory: File) {
                 source = source,
                 packageName = app.packageName,
                 iconUrl = icon?.let { "$repository/icons-640/$it" },
+                featureGraphicUrl = app.featureGraphic?.let { graphicUrl(repository, app.packageName, it, "featureGraphic.png") },
+                previewUrls = app.screenshots
+                    .map { graphicUrl(repository, app.packageName, it, "phoneScreenshots") }
+                    .distinct()
+                    .take(MAX_PREVIEWS),
                 versionName = release.versionName,
                 categories = app.categories.ifEmpty { listOf("Other") },
                 license = app.license,
@@ -89,6 +94,7 @@ internal class FdroidClient(private val cacheDirectory: File) {
             var license: String? = null
             var website: String? = null
             var sourceCode: String? = null
+            var graphics = LocalizedGraphics()
             val categories = mutableListOf<String>()
             reader.beginObject()
             while (reader.hasNext()) {
@@ -101,6 +107,7 @@ internal class FdroidClient(private val cacheDirectory: File) {
                     "license" -> license = reader.flexibleString().ifBlank { null }
                     "webSite" -> website = reader.flexibleString().ifBlank { null }
                     "sourceCode" -> sourceCode = reader.flexibleString().ifBlank { null }
+                    "localized" -> graphics = reader.readLocalizedGraphics()
                     "categories" -> {
                         reader.beginArray()
                         while (reader.hasNext()) {
@@ -118,7 +125,9 @@ internal class FdroidClient(private val cacheDirectory: File) {
                     name = name,
                     summary = summary,
                     description = description,
-                    icon = icon,
+                    icon = graphics.icon ?: icon,
+                    featureGraphic = graphics.featureGraphic,
+                    screenshots = graphics.screenshots,
                     categories = categories,
                     license = license,
                     website = website,
@@ -127,6 +136,73 @@ internal class FdroidClient(private val cacheDirectory: File) {
             }
         }
         reader.endArray()
+    }
+
+    private fun JsonReader.readLocalizedGraphics(): LocalizedGraphics {
+        if (peek() != JsonToken.BEGIN_OBJECT) {
+            skipValue()
+            return LocalizedGraphics()
+        }
+        var best = LocalizedGraphics()
+        var bestScore = -1
+        beginObject()
+        while (hasNext()) {
+            val locale = nextName()
+            val candidate = readLocaleGraphics()
+            val score = when {
+                locale.equals("en-US", ignoreCase = true) -> 3
+                locale.startsWith("en", ignoreCase = true) -> 2
+                bestScore < 0 -> 1
+                else -> 0
+            }
+            if (candidate.hasArtwork && score > bestScore) {
+                best = candidate
+                bestScore = score
+            }
+        }
+        endObject()
+        return best
+    }
+
+    private fun JsonReader.readLocaleGraphics(): LocalizedGraphics {
+        if (peek() != JsonToken.BEGIN_OBJECT) {
+            skipValue()
+            return LocalizedGraphics()
+        }
+        var icon: String? = null
+        var featureGraphic: String? = null
+        val phoneScreenshots = mutableListOf<String>()
+        val otherScreenshots = mutableListOf<String>()
+        beginObject()
+        while (hasNext()) {
+            when (nextName()) {
+                "icon" -> icon = flexibleString().ifBlank { null }
+                "featureGraphic" -> featureGraphic = flexibleString().ifBlank { null }
+                "phoneScreenshots" -> phoneScreenshots += readStringArray()
+                "sevenInchScreenshots", "tenInchScreenshots", "tvScreenshots", "wearScreenshots" -> {
+                    otherScreenshots += readStringArray()
+                }
+                else -> skipValue()
+            }
+        }
+        endObject()
+        return LocalizedGraphics(
+            icon = icon,
+            featureGraphic = featureGraphic,
+            screenshots = (phoneScreenshots + otherScreenshots).distinct()
+        )
+    }
+
+    private fun JsonReader.readStringArray(): List<String> {
+        if (peek() != JsonToken.BEGIN_ARRAY) {
+            skipValue()
+            return emptyList()
+        }
+        return buildList {
+            beginArray()
+            while (hasNext()) flexibleString().takeIf(String::isNotBlank)?.let(::add)
+            endArray()
+        }
     }
 
     private fun readPackages(reader: JsonReader, output: MutableMap<String, PackageRelease>) {
@@ -161,6 +237,12 @@ internal class FdroidClient(private val cacheDirectory: File) {
         reader.endObject()
     }
 
+    private fun graphicUrl(repository: String, packageName: String, rawPath: String, fallbackFolder: String): String {
+        val path = rawPath.removePrefix("/")
+        val resolved = if ('/' in path) path else "$packageName/en-US/$fallbackFolder/$path"
+        return "$repository/$resolved"
+    }
+
     private fun connection(url: String): HttpURLConnection =
         (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 20_000
@@ -186,11 +268,22 @@ internal class FdroidClient(private val cacheDirectory: File) {
         val summary: String,
         val description: String,
         val icon: String?,
+        val featureGraphic: String?,
+        val screenshots: List<String>,
         val categories: List<String>,
         val license: String?,
         val website: String?,
         val sourceCode: String?
     )
+
+    private data class LocalizedGraphics(
+        val icon: String? = null,
+        val featureGraphic: String? = null,
+        val screenshots: List<String> = emptyList()
+    ) {
+        val hasArtwork: Boolean
+            get() = icon != null || featureGraphic != null || screenshots.isNotEmpty()
+    }
 
     private data class PackageRelease(
         val apkName: String,
@@ -201,7 +294,8 @@ internal class FdroidClient(private val cacheDirectory: File) {
 
     companion object {
         private const val CACHE_AGE_MS = 12L * 60L * 60L * 1000L
-        private const val USER_AGENT = "GitDroid/0.1.0 (Android FOSS catalog)"
+        private const val USER_AGENT = "GitDroid/0.2.0 (Android FOSS catalog)"
+        private const val MAX_PREVIEWS = 8
     }
 }
 

@@ -23,6 +23,7 @@ internal class GitHubClient {
                 if (fullName.isBlank()) continue
                 val topics = item.optJSONArray("topics").toStrings()
                 val description = item.optString("description")
+                val repositoryPreview = "https://opengraph.githubassets.com/gitdroid/$fullName"
                 add(
                     StoreApp(
                         id = "github:$fullName",
@@ -32,6 +33,8 @@ internal class GitHubClient {
                         source = SourceKind.GITHUB,
                         repositoryFullName = fullName,
                         iconUrl = item.optJSONObject("owner")?.optString("avatar_url"),
+                        featureGraphicUrl = repositoryPreview,
+                        previewUrls = listOf(repositoryPreview),
                         categories = inferCategories(topics, description),
                         license = item.optJSONObject("license")?.optString("spdx_id")?.takeUnless { it == "NOASSERTION" },
                         projectUrl = item.optString("homepage").takeIf(String::isNotBlank) ?: item.optString("html_url"),
@@ -74,7 +77,7 @@ internal class GitHubClient {
             connection.readTimeout = 60_000
             connection.setRequestProperty("Accept", "application/vnd.github+json")
             connection.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
-            connection.setRequestProperty("User-Agent", "GitDroid/0.1.0")
+            connection.setRequestProperty("User-Agent", "GitDroid/0.2.0")
             if (token.isNotBlank()) connection.setRequestProperty("Authorization", "Bearer $token")
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream

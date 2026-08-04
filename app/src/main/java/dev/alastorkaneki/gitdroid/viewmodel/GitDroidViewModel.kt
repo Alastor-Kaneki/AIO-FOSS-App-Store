@@ -55,6 +55,18 @@ class GitDroidViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun refreshInstalled() {
+        val current = mutableUiState.value
+        if (current.apps.isEmpty()) return
+        viewModelScope.launch {
+            val refreshed = withContext(Dispatchers.IO) { catalog.refreshInstalledState(current.apps) }
+            val selected = current.selectedApp?.let { selectedApp ->
+                refreshed.firstOrNull { it.id == selectedApp.id } ?: selectedApp
+            }
+            mutableUiState.value = mutableUiState.value.copy(apps = refreshed, selectedApp = selected)
+        }
+    }
+
     fun selectApp(app: StoreApp) {
         mutableUiState.value = mutableUiState.value.copy(selectedApp = app, resolvingRelease = false)
         if (app.repositoryFullName == null || app.apkUrl != null) return

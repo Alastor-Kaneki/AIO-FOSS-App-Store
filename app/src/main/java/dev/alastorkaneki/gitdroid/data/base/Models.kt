@@ -15,6 +15,8 @@ data class StoreApp(
     val packageName: String? = null,
     val repositoryFullName: String? = null,
     val iconUrl: String? = null,
+    val featureGraphicUrl: String? = null,
+    val previewUrls: List<String> = emptyList(),
     val versionName: String? = null,
     val categories: List<String> = listOf("Other"),
     val license: String? = null,
@@ -23,8 +25,13 @@ data class StoreApp(
     val apkUrl: String? = null,
     val apkName: String? = null,
     val apkSize: Long? = null,
-    val stars: Long? = null
-)
+    val stars: Long? = null,
+    val installedVersionName: String? = null,
+    val installedVersionCode: Long? = null
+) {
+    val isInstalled: Boolean
+        get() = installedVersionName != null || installedVersionCode != null
+}
 
 data class AppSettings(
     val fdroidEnabled: Boolean = true,
@@ -33,6 +40,7 @@ data class AppSettings(
     val amoled: Boolean = true,
     val dynamicColor: Boolean = true,
     val immersive: Boolean = false,
+    val shizukuInstall: Boolean = true,
     val githubToken: String = ""
 )
 

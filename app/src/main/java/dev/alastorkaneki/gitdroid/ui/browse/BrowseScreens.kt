@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AssistChip
@@ -36,9 +37,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import dev.alastorkaneki.gitdroid.data.SourceKind
 import dev.alastorkaneki.gitdroid.data.StoreApp
 import dev.alastorkaneki.gitdroid.data.UiState
@@ -78,14 +81,7 @@ fun DiscoverScreen(
                 label = { Text("Search FOSS apps") }
             )
         }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = source == null, onClick = { source = null }, label = { Text("All") })
-                SourceKind.entries.forEach { kind ->
-                    FilterChip(selected = source == kind, onClick = { source = kind }, label = { Text(kind.label) })
-                }
-            }
-        }
+        item { SourceFilters(source = source, onSource = { source = it }) }
         state.warnings.forEach { warning -> item { WarningBanner(warning) } }
         if (state.error != null && !state.loading) {
             item { EmptyMessage(state.error, onRetry) }
@@ -93,6 +89,56 @@ fun DiscoverScreen(
             item { EmptyMessage("No apps match the current search and source filters.", onRetry) }
         } else {
             items(filtered, key = { it.id }) { app -> AppRow(app, onClick = { onSelectApp(app) }) }
+        }
+    }
+}
+
+@Composable
+fun InstalledScreen(
+    apps: List<StoreApp>,
+    onRetry: () -> Unit,
+    onSelectApp: (StoreApp) -> Unit
+) {
+    var source by rememberSaveable { mutableStateOf<SourceKind?>(null) }
+    val installed = remember(apps, source) {
+        apps.filter { it.isInstalled && (source == null || it.source == source) }
+    }
+    val totalInstalled = remember(apps) { apps.count(StoreApp::isInstalled) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text("Installed apps", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(
+                "$totalInstalled apps matched to enabled catalogs and remembered GitDroid installs",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        item { SourceFilters(source = source, onSource = { source = it }) }
+        if (installed.isEmpty()) {
+            item {
+                EmptyMessage(
+                    if (source == null) "No installed apps have been matched yet." else "No installed ${source?.label} apps were found.",
+                    onRetry
+                )
+            }
+        } else {
+            items(installed, key = { "installed:${it.id}" }) { app ->
+                AppRow(app, onClick = { onSelectApp(app) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceFilters(source: SourceKind?, onSource: (SourceKind?) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(selected = source == null, onClick = { onSource(null) }, label = { Text("All") })
+        SourceKind.entries.forEach { kind ->
+            FilterChip(selected = source == kind, onClick = { onSource(kind) }, label = { Text(kind.label) })
         }
     }
 }
@@ -157,6 +203,22 @@ fun AppRow(app: StoreApp, onClick: () -> Unit) {
                     app.versionName?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
                     app.stars?.let { Text("★ ${compactNumber(it)}", style = MaterialTheme.typography.labelMedium) }
                 }
+                if (app.isInstalled) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            null,
+                            Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            "Installed ${app.installedVersionName.orEmpty()}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
         }
     }
@@ -176,6 +238,14 @@ fun AppGlyph(app: StoreApp, modifier: Modifier = Modifier) {
                 fontWeight = FontWeight.Black,
                 color = sourceColor(app.source)
             )
+            app.iconUrl?.let { iconUrl ->
+                AsyncImage(
+                    model = iconUrl,
+                    contentDescription = "${app.name} icon",
+                    modifier = Modifier.fillMaxSize().padding(5.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
         }
     }
 }

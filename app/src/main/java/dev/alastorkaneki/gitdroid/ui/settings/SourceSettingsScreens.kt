@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.InstallMobile
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Visibility
@@ -40,6 +41,7 @@ import dev.alastorkaneki.gitdroid.data.AppSettings
 import dev.alastorkaneki.gitdroid.data.CatalogRepository
 import dev.alastorkaneki.gitdroid.data.SourceKind
 import dev.alastorkaneki.gitdroid.data.UiState
+import dev.alastorkaneki.gitdroid.shizuku.ShizukuInstallerClient
 
 @Composable
 fun SourcesScreen(
@@ -121,6 +123,8 @@ fun SettingsScreen(
     onUpdate: (Boolean, (AppSettings) -> AppSettings) -> Unit
 ) {
     var revealToken by remember { mutableStateOf(false) }
+    val shizukuStatus = remember(settings.shizukuInstall) { ShizukuInstallerClient.statusLabel() }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
@@ -153,6 +157,31 @@ fun SettingsScreen(
                 checked = settings.immersive,
                 onChecked = { value -> onUpdate(false) { it.copy(immersive = value) } }
             )
+        }
+        item {
+            Text("Installation", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp))
+        }
+        item {
+            SettingSwitch(
+                icon = { Icon(Icons.Default.InstallMobile, null) },
+                title = "Install with Shizuku",
+                subtitle = "Use Shizuku's ADB or root service, with the normal installer as fallback",
+                checked = settings.shizukuInstall,
+                onChecked = { value -> onUpdate(false) { it.copy(shizukuInstall = value) } }
+            )
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Shizuku status", fontWeight = FontWeight.SemiBold)
+                    Text(shizukuStatus, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Permission is requested only when an installation starts.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
         item {
             Text("GitHub", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp))

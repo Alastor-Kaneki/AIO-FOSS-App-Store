@@ -9,12 +9,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Language
@@ -32,10 +37,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import dev.alastorkaneki.gitdroid.data.StoreApp
 import java.util.Locale
 
@@ -45,8 +53,17 @@ fun AppDetailScreen(
     activity: ComponentActivity,
     app: StoreApp,
     resolving: Boolean,
+    preferShizuku: Boolean,
+    onInstallFinished: () -> Unit,
     onBack: () -> Unit
 ) {
+    val previews = remember(app.featureGraphicUrl, app.previewUrls) {
+        buildList {
+            app.featureGraphicUrl?.takeIf(String::isNotBlank)?.let(::add)
+            addAll(app.previewUrls.filter(String::isNotBlank))
+        }.distinct()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -68,12 +85,30 @@ fun AppDetailScreen(
                         Text(app.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                         SourceBadge(app.source)
                         app.versionName?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        if (app.isInstalled) {
+                            Spacer(Modifier.height(5.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Icon(Icons.Default.CheckCircle, null, Modifier.size(17.dp), tint = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    "Installed ${app.installedVersionName.orEmpty()}",
+                                    color = MaterialTheme.colorScheme.primary,
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
+                        }
                     }
                 }
             }
             item {
                 Button(
-                    onClick = { downloadAndInstall(activity, app) },
+                    onClick = {
+                        downloadAndInstall(
+                            activity = activity,
+                            app = app,
+                            preferShizuku = preferShizuku,
+                            onInstallFinished = onInstallFinished
+                        )
+                    },
                     enabled = app.apkUrl != null && !resolving,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -84,9 +119,32 @@ fun AppDetailScreen(
                         when {
                             resolving -> "Finding compatible APK"
                             app.apkUrl == null -> "No APK in latest release"
-                            else -> "Download and install${app.apkSize?.let { " · ${readableBytes(it)}" }.orEmpty()}"
+                            app.isInstalled -> "Update${if (preferShizuku) " with Shizuku" else ""}${app.apkSize?.let { " · ${readableBytes(it)}" }.orEmpty()}"
+                            else -> "Install${if (preferShizuku) " with Shizuku" else ""}${app.apkSize?.let { " · ${readableBytes(it)}" }.orEmpty()}"
                         }
                     )
+                }
+            }
+            if (previews.isNotEmpty()) {
+                item {
+                    Text("Previews", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(10.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(previews, key = { it }) { previewUrl ->
+                            Card(
+                                modifier = Modifier.width(286.dp).height(176.dp),
+                                shape = RoundedCornerShape(20.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                            ) {
+                                AsyncImage(
+                                    model = previewUrl,
+                                    contentDescription = "${app.name} preview",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        }
+                    }
                 }
             }
             item {
@@ -103,6 +161,7 @@ fun AppDetailScreen(
                     Text("Details", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     DetailLine("Source", app.source.label)
                     app.packageName?.let { DetailLine("Package", it) }
+                    app.installedVersionName?.let { DetailLine("Installed", it) }
                     app.license?.let { DetailLine("License", it) }
                     app.categories.takeIf { it.isNotEmpty() }?.let { DetailLine("Categories", it.joinToString()) }
                     app.stars?.let { DetailLine("GitHub stars", compactNumberDetail(it)) }
@@ -128,7 +187,11 @@ fun AppDetailScreen(
             }
             item {
                 Text(
-                    "APK installation is handed to Android's system package installer. Review the source, requested permissions, and signing identity before installing.",
+                    if (preferShizuku) {
+                        "GitDroid will request Shizuku permission and install through Android's package manager service. If Shizuku is unavailable, it falls back to the system installer. Review the source and signing identity before installing."
+                    } else {
+                        "APK installation is handed to Android's system package installer. Review the source, requested permissions, and signing identity before installing."
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall
                 )
