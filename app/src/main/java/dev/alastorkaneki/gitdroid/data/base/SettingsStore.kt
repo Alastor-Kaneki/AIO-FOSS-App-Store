@@ -19,6 +19,7 @@ class SettingsStore(context: Context) {
             .putBoolean("amoled", next.amoled)
             .putBoolean("dynamic", next.dynamicColor)
             .putBoolean("immersive", next.immersive)
+            .putBoolean("shizuku_install", next.shizukuInstall)
             .putString("github_token", next.githubToken)
             .apply()
         mutableSettings.value = next
@@ -31,6 +32,7 @@ class SettingsStore(context: Context) {
         amoled = preferences.getBoolean("amoled", true),
         dynamicColor = preferences.getBoolean("dynamic", true),
         immersive = preferences.getBoolean("immersive", false),
+        shizukuInstall = preferences.getBoolean("shizuku_install", true),
         githubToken = preferences.getString("github_token", "").orEmpty()
     )
 }
