@@ -105,7 +105,7 @@ fun AppDetailScreen(
                     DetailLine("Source", app.source.label)
                     app.packageName?.let { DetailLine("Package", it) }
                     app.license?.let { DetailLine("License", it) }
-                    app.categories.takeIf(List<String>::isNotEmpty)?.let { DetailLine("Categories", it.joinToString()) }
+                    app.categories.takeIf { it.isNotEmpty() }?.let { DetailLine("Categories", it.joinToString()) }
                     app.stars?.let { DetailLine("GitHub stars", compactNumberDetail(it)) }
                 }
             }
