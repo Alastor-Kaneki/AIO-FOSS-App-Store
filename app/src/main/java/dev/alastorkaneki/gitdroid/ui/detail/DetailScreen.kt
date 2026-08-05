@@ -37,7 +37,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -63,6 +66,7 @@ fun AppDetailScreen(
             addAll(app.previewUrls.filter(String::isNotBlank))
         }.distinct()
     }
+    var installStatus by remember(app.id) { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -106,18 +110,23 @@ fun AppDetailScreen(
                             activity = activity,
                             app = app,
                             preferShizuku = preferShizuku,
-                            onInstallFinished = onInstallFinished
+                            onInstallFinished = onInstallFinished,
+                            onStatus = { installStatus = it }
                         )
                     },
-                    enabled = app.apkUrl != null && !resolving,
+                    enabled = app.apkUrl != null && !resolving && installStatus == null,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    if (resolving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    else Icon(Icons.Default.Download, null)
+                    if (resolving || installStatus != null) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.Download, null)
+                    }
                     Spacer(Modifier.width(10.dp))
                     Text(
                         when {
                             resolving -> "Finding compatible APK"
+                            installStatus != null -> installStatus.orEmpty()
                             app.apkUrl == null -> "No APK in latest release"
                             app.isInstalled -> "Update${if (preferShizuku) " with Shizuku" else ""}${app.apkSize?.let { " · ${readableBytes(it)}" }.orEmpty()}"
                             else -> "Install${if (preferShizuku) " with Shizuku" else ""}${app.apkSize?.let { " · ${readableBytes(it)}" }.orEmpty()}"
@@ -188,9 +197,9 @@ fun AppDetailScreen(
             item {
                 Text(
                     if (preferShizuku) {
-                        "GitDroid will request Shizuku permission and install through Android's package manager service. If Shizuku is unavailable, it falls back to the system installer. Review the source and signing identity before installing."
+                        "GitDroid downloads and verifies the APK, then installs it with Shizuku's shell identity. If Shizuku cannot complete the install, GitDroid opens Android's native package installer with the same verified APK."
                     } else {
-                        "APK installation is handed to Android's system package installer. Review the source, requested permissions, and signing identity before installing."
+                        "GitDroid downloads and verifies the APK, stages it in Android's PackageInstaller, and opens the system confirmation screen."
                     },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall
