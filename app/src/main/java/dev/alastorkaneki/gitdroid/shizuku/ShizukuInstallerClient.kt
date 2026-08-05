@@ -9,6 +9,7 @@ import android.os.ParcelFileDescriptor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import rikka.shizuku.Shizuku
 import java.io.File
 import kotlin.coroutines.resume
@@ -38,13 +39,16 @@ object ShizukuInstallerClient {
             return Result(false, "This Shizuku version is too old")
         }
 
-        val permissionGranted = runCatching {
-            if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) true else requestPermission()
-        }.getOrDefault(false)
+        val permissionGranted = withTimeoutOrNull(PERMISSION_TIMEOUT_MS) {
+            runCatching {
+                if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) true else requestPermission()
+            }.getOrDefault(false)
+        } ?: false
         if (!permissionGranted) return Result(false, "Shizuku permission was not granted")
 
-        val bound = runCatching { bind(context.applicationContext) }
-            .getOrElse { return Result(false, "Could not start Shizuku installer: ${it.message}") }
+        val bound = withTimeoutOrNull(BIND_TIMEOUT_MS) {
+            runCatching { bind(context.applicationContext) }.getOrNull()
+        } ?: return Result(false, "Shizuku installer service did not connect")
 
         return try {
             val response = withContext(Dispatchers.IO) {
@@ -79,8 +83,8 @@ object ShizukuInstallerClient {
 
     private suspend fun bind(context: Context): BoundService = suspendCancellableCoroutine { continuation ->
         val args = Shizuku.UserServiceArgs(ComponentName(context, ShizukuInstallerService::class.java))
-            .processNameSuffix("gitdroid_installer")
-            .tag("gitdroid-installer")
+            .processNameSuffix("gitdroid_installer_v2")
+            .tag("gitdroid-installer-v2")
             .version(USER_SERVICE_VERSION)
             .debuggable(false)
             .daemon(true)
@@ -114,5 +118,7 @@ object ShizukuInstallerClient {
     )
 
     private const val PERMISSION_REQUEST_CODE = 9021
-    private const val USER_SERVICE_VERSION = 1
+    private const val USER_SERVICE_VERSION = 2
+    private const val PERMISSION_TIMEOUT_MS = 60_000L
+    private const val BIND_TIMEOUT_MS = 20_000L
 }
